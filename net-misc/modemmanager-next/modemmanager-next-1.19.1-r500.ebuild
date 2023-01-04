@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # Based on gentoo's modemmanager ebuild
 
-EAPI=7
+EAPI=6
 CROS_WORKON_COMMIT="625c29cd9d59af86259cac0129d38767dc928cf4"
 CROS_WORKON_TREE="a90f59a2e56bf674152f2ed7799bd490fd2d4782"
 CROS_WORKON_PROJECT="chromiumos/third_party/modemmanager-next"
