@@ -1,10 +1,10 @@
-# Copyright 2017 The Chromium OS Authors. All rights reserved.
+# Copyright 2017 The ChromiumOS Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=5
 
-CROS_WORKON_COMMIT="f9d82e9432585f2b8978dbf7443b52db8392f4ac"
-CROS_WORKON_TREE=("e7dba8c91c1f3257c34d4a7ffff0ea2537aeb6bb" "bdce8a305b6af438503ba12680e7d8526bcc2dfc" "dece98c22e7df8333e08836f443f61a95bc998b7" "ce367500077fdaa5cc58fc29610d1f00ff526a7f" "e8c8ddc463c0f9f733053b2a4a0f6fda2d26c85c" "17c0af603db6e69e7d5b07fe21738237ebe29f3f" "2345346c6533c29d4e3ee84bc2bf53306247256c")
+CROS_WORKON_COMMIT="eac4e822bd2b7afbe020e2fc65847819abf7c7ce"
+CROS_WORKON_TREE=("f91b6afd5f2ae04ee9a2c19109a3a4a36f7659e6" "4fc7c463ce102d1dff62e86baffad4a67ea2c940" "1232b5450992d3c45a88234d53a5afd4729a33fc" "6e0df3e9b16fadbd0dbe467416fa812fa4733002" "379618bb76af3b056fdbf5a781ea3bd4152ca237" "fefa46dc07b1045ed94377bd79f0ec4cac20f50a" "79cdd007ff69259efcaad08803ef2d1498374ec4")
 CROS_WORKON_PROJECT="chromiumos/platform2"
 CROS_WORKON_LOCALNAME="../platform2"
 # TODO(crbug.com/809389): Avoid directly including headers from other packages.
@@ -28,15 +28,15 @@ RDEPEND="
 	chromeos-base/cros-camera-libs
 	dev-libs/re2
 	media-libs/libsync
-    media-libs/rockchip-mpp"
+	media-libs/rockchip-mpp"
 
 DEPEND="${RDEPEND}
 	media-libs/libyuv
 	virtual/pkgconfig"
 
 src_prepare() {
-        default
-        epatch "${FILESDIR}/0001-try_convert_mjpeg_to_nv12_first.patch"
+	default
+	epatch "${FILESDIR}/0001-try_convert_mjpeg_to_nv12_first.patch"
 }
 
 src_install() {

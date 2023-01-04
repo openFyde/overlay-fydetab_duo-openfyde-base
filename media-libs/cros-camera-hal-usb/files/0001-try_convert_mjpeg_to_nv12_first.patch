@@ -1,8 +1,6 @@
-diff --git a/BUILD.gn b/BUILD.gn
-index 01ad6571901b..143f911f064a 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
-@@ -23,6 +23,13 @@ pkg_config("target_defaults") {
+@@ -23,6 +23,13 @@
    configs = [ "//camera/build:cros_camera_common" ]
  }
  
@@ -16,7 +14,7 @@ index 01ad6571901b..143f911f064a 100644
  shared_library("libcamera_hal") {
    sources = [
      "//camera/common/vendor_tag_manager.cc",
-@@ -42,7 +49,7 @@ shared_library("libcamera_hal") {
+@@ -42,7 +49,7 @@
      "v4l2_camera_device.cc",
      "vendor_tag.cc",
    ]
@@ -25,28 +23,24 @@ index 01ad6571901b..143f911f064a 100644
  }
  
  if (use.test) {
-diff --git a/cached_frame.cc b/cached_frame.cc
-index c8953db0d45b..6d3ece349754 100644
 --- a/cached_frame.cc
 +++ b/cached_frame.cc
-@@ -364,16 +364,23 @@ int CachedFrame::DecodeToNV12(const FrameBuffer& in_frame,
-                                      V4L2_PIX_FMT_YUV420, &temp_i420_frame_)) {
+@@ -345,15 +345,21 @@
      return -EINVAL;
    }
-+
    base::ElapsedTimer sw_timer;
--  ret = image_processor_->ConvertFormat(in_frame, temp_i420_frame_.get());
--  if (ret) {
+-  ret = image_processor_->ConvertFormat(in_frame, *temp_i420_frame_);
++  ret = image_processor_->ConvertFormat(in_frame, out_frame);
+   if (ret) {
 -    LOGF(ERROR) << "Decode JPEG to YU12 failed: " << ret;
 -    return -EAGAIN;
 -  }
 -  ret = image_processor_->ConvertFormat(*temp_i420_frame_, out_frame);
-+  ret = image_processor_->ConvertFormat(in_frame, out_frame);
-   if (ret) {
+-  if (ret) {
 -    return -EINVAL;
 +    LOGF(ERROR) << "Decode JPEG to NV12 failed: " << ret;
 +
-+    ret = image_processor_->ConvertFormat(in_frame, temp_i420_frame_.get());
++    ret = image_processor_->ConvertFormat(in_frame, *temp_i420_frame_);
 +    if (ret) {
 +      LOGF(ERROR) << "Decode JPEG to YU12 failed: " << ret;
 +      return -EAGAIN;
@@ -60,8 +54,6 @@ index c8953db0d45b..6d3ece349754 100644
    camera_metrics_->SendJpegProcessLatency(JpegProcessType::kDecode,
                                            JpegProcessMethod::kSoftware,
                                            sw_timer.Elapsed());
-diff --git a/image_processor.cc b/image_processor.cc
-index edf640840664..53974bd8da56 100644
 --- a/image_processor.cc
 +++ b/image_processor.cc
 @@ -13,6 +13,7 @@
@@ -72,23 +64,23 @@ index edf640840664..53974bd8da56 100644
  
  namespace cros {
  
-@@ -266,6 +267,19 @@ int ImageProcessor::ConvertFormat(const FrameBuffer& in_frame,
+@@ -271,6 +272,19 @@
    } else if (in_frame.GetFourcc() == V4L2_PIX_FMT_JPEG ||
               in_frame.GetFourcc() == V4L2_PIX_FMT_MJPEG) {
-     switch (out_frame->GetFourcc()) {
+     switch (out_frame.GetFourcc()) {
 +      case V4L2_PIX_FMT_NV12: {
 +        int res =
 +            mpp_convert_mjpeg_to_nv12(in_frame.GetData(), in_frame.GetDataSize(),
-+                               out_frame->GetData(FrameBuffer::YPLANE),
-+                               out_frame->GetStride(FrameBuffer::YPLANE),
-+                               out_frame->GetData(FrameBuffer::UPLANE),
-+                               out_frame->GetStride(FrameBuffer::UPLANE),
++                               out_frame.GetData(FrameBuffer::YPLANE),
++                               out_frame.GetStride(FrameBuffer::YPLANE),
++                               out_frame.GetData(FrameBuffer::UPLANE),
++                               out_frame.GetStride(FrameBuffer::UPLANE),
 +                               in_frame.GetWidth(), in_frame.GetHeight(),
-+                               out_frame->GetWidth(), out_frame->GetHeight());
++                               out_frame.GetWidth(), out_frame.GetHeight());
 +        LOGF_IF(ERROR, res) << "libyuv::MJPGToNV12() returns " << res;
 +        return res ? -EINVAL : 0;
 +      }
 +
        case V4L2_PIX_FMT_YUV420:     // YU12
        case V4L2_PIX_FMT_YUV420M: {  // YM12, multiple planes YU12
-         int res =
+         int res = libyuv::MJPGToI420(

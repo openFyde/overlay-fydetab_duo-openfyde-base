@@ -1,15 +1,15 @@
-# Copyright 2014 The Chromium OS Authors. All rights reserved.
+# Copyright 2014 The ChromiumOS Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
-CROS_WORKON_COMMIT="d376bea53a9c32f3699a40bdde23e0ed426d5571"
-CROS_WORKON_TREE=("2345346c6533c29d4e3ee84bc2bf53306247256c" "29d2f0fcd2444371bf2152eb9ffc9904ade26fea" "d1fb8b139f7c55371c2b9d3ac78199ea2127a140" "34fa0ea2975f272c5ba242aae3871139ec790782" "55976c0a11bc37a530f8d4c14ae732300e17ccd9" "7ca7377c9fe2170cef981431a4064a36b9e2ff1a" "9bef61d6003b12addd6efc635642406b691c7cee" "e7dba8c91c1f3257c34d4a7ffff0ea2537aeb6bb")
+CROS_WORKON_COMMIT="64cd12506e3f488c31ba42486cbeed91fbf95acf"
+CROS_WORKON_TREE=("79cdd007ff69259efcaad08803ef2d1498374ec4" "c76810dd7a19ff7d6cc8384aa30b962806f1d1c0" "77cc0ad6e3c6963ea161d98f76bd163ea1274596" "519533f5905e311e1f93fd184a2a9140a19e7038" "eb510d666a66e6125e281499b649651b849a25f7" "04e719781ceebd62f2f0c6fcc76f46a07944b9b4" "f6725f00593ed0ad0d89fb8232fcf0dc9287c8fd" "89c6bc5c3505754b3f56925b13f25e8b33274aa4" "f91b6afd5f2ae04ee9a2c19109a3a4a36f7659e6")
 CROS_WORKON_USE_VCSID="1"
 CROS_WORKON_LOCALNAME="platform2"
 CROS_WORKON_PROJECT="chromiumos/platform2"
 CROS_WORKON_OUTOFTREE_BUILD=1
 # TODO(crbug.com/809389): Avoid directly including headers from other packages.
-CROS_WORKON_SUBTREE="common-mk chromeos-config iioservice libec metrics power_manager shill/dbus/client .gn"
+CROS_WORKON_SUBTREE="common-mk chromeos-config iioservice libec metrics mojo_service_manager power_manager shill/dbus/client .gn"
 
 PLATFORM_NATIVE_TEST="yes"
 PLATFORM_SUBDIR="power_manager"
@@ -30,6 +30,7 @@ COMMON_DEPEND="
 	chromeos-base/libec:=
 	>=chromeos-base/metrics-0.0.1-r3152:=
 	chromeos-base/ml-client:=
+	chromeos-base/mojo_service_manager:=
 	chromeos-base/shill-dbus-client:=
 	chromeos-base/tpm_manager-client:=
 	dev-libs/libnl:=

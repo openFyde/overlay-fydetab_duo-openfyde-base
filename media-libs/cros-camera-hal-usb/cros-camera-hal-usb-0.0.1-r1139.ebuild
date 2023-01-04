@@ -1,1 +1,0 @@
-cros-camera-hal-usb-0.0.1-r1137.ebuild

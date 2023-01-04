@@ -2,19 +2,16 @@
 # Distributed under the terms of the GNU General Public License v2
 # Based on gentoo's modemmanager ebuild
 
-EAPI=6
-CROS_WORKON_COMMIT="6d8f892fa9a854c82e7140a5c035e7973c84d67a"
-CROS_WORKON_TREE="cecdbe635d8e52398ee304ef74d9194fdc0328bc"
+EAPI=7
+CROS_WORKON_COMMIT="625c29cd9d59af86259cac0129d38767dc928cf4"
+CROS_WORKON_TREE="a90f59a2e56bf674152f2ed7799bd490fd2d4782"
 CROS_WORKON_PROJECT="chromiumos/third_party/modemmanager-next"
 CROS_WORKON_EGIT_BRANCH="master"
 
-inherit eutils autotools cros-sanitizers cros-workon flag-o-matic systemd udev user
-
-# ModemManager likes itself with capital letters
-MY_P=${P/modemmanager/ModemManager}
+inherit eutils autotools cros-sanitizers cros-workon flag-o-matic systemd udev user fcaps
 
 DESCRIPTION="Modem and mobile broadband management libraries"
-HOMEPAGE="http://mail.gnome.org/archives/networkmanager-list/2008-July/msg00274.html"
+HOMEPAGE="https://www.freedesktop.org/wiki/Software/ModemManager/"
 #SRC_URI not defined because we get our source locally
 
 LICENSE="GPL-2"
@@ -33,11 +30,15 @@ RDEPEND=">=dev-libs/glib-2.36
 
 DEPEND="${RDEPEND}
 	virtual/libgudev
-	dev-util/pkgconfig
-	dev-util/intltool
-	>=dev-util/gtk-doc-1.13
 	!net-misc/modemmanager-next-interfaces
 	!net-misc/modemmanager"
+
+BDEPEND="
+	dev-util/gdbus-codegen
+	dev-util/glib-utils
+	dev-util/intltool
+	>=dev-util/gtk-doc-am-1.13
+	>=sys-devel/gettext-0.19.8"
 
 DOCS="AUTHORS NEWS README"
 
@@ -80,15 +81,26 @@ src_prepare() {
 }
 
 src_configure() {
+	# https://github.com/pkgconf/pkgconf/issues/205
+	local -x PKG_CONFIG_FDO_SYSROOT_RULES=1
+
 	sanitizers-setup-env
 	append-flags -Xclang-only=-Wno-unneeded-internal-declaration
 	append-flags -DWITH_NEWEST_QMI_COMMANDS
 	# TODO(b/183029202): Remove this once we have support for IPv6 only network
 	append-flags -DSUPPORT_MBIM_IPV6_WITH_IPV4_ROAMING
+	append-flags -DMBIM_FIBOCOM_SAR_HACK
 	econf \
 		--with-html-dir="\${datadir}/doc/${PF}/html" \
 		--enable-compile-warnings=yes \
 		--enable-introspection=no \
+		--with-powerd-suspend-resume \
+		--disable-all-plugins   \
+		--enable-plugin-fibocom \
+		--enable-plugin-generic \
+		--enable-plugin-huawei \
+		--enable-plugin-quectel \
+		--enable-plugin-intel \
 		"$(use_enable {,gtk-}doc)" \
 		"$(use_with mbim)" \
 		"$(use_enable qrtr plugin-qcom-soc)" \
@@ -115,35 +127,6 @@ src_install() {
 	# service is received. We do not want this behaviour.
 	find "${D}" -name 'org.freedesktop.ModemManager1.service' -delete
 
-	# Only install the following plugins for supported modems to conserve
-	# space on the root filesystem.
-	local plugins=(
-		altair-lte
-		generic
-		huawei
-		longcheer
-		novatel-lte
-    quectel
-		samsung
-		telit
-		zte
-	)
-	if use qrtr; then
-		plugins+=(qcom-soc)
-	fi
-
-	local plugins_regex=".*/libmm-plugin-($(IFS='|'; echo "${plugins[*]}")).so"
-
-	find "${D}" -regextype posix-extended \
-		-name 'libmm-plugin-*.so' \
-		! -regex "${plugins_regex}" \
-		-delete
-
-	local found_plugins="$(find "${D}" -regextype posix-extended \
-		-regex "${plugins_regex}" | wc -l)"
-	[[ "${found_plugins}" == "${#plugins[@]}" ]] || \
-		die "Expects ${#plugins[@]} plugins, but ${found_plugins} found."
-
 	# Seccomp policy file.
 	insinto /usr/share/policy
 	newins "${FILESDIR}/modemmanager-${ARCH}.policy" modemmanager.policy
@@ -164,7 +147,6 @@ src_install() {
 
 	# Install Chrome OS specific udev rules.
 	udev_dorules "${FILESDIR}/52-mm-modem-permissions.rules"
-	udev_dorules "${FILESDIR}/77-mm-fibocom-port-types.rules"
 	udev_dorules "${FILESDIR}/77-mm-huawei-configuration.rules"
 	exeinto "$(get_udevdir)"
 	doexe "${FILESDIR}/mm-huawei-configuration-switch.sh"
@@ -175,3 +157,7 @@ pkg_preinst() {
 	enewuser "modem"
 	enewgroup "modem"
 }
+
+FILECAPS=(
+  cap_net_admin+ep usr/sbin/ModemManager
+)

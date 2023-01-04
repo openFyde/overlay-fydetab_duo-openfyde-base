@@ -2,17 +2,14 @@
 # Distributed under the terms of the GNU General Public License v2
 # Based on gentoo's modemmanager ebuild
 
-EAPI=6
+EAPI=7
 CROS_WORKON_PROJECT="chromiumos/third_party/modemmanager-next"
 CROS_WORKON_EGIT_BRANCH="master"
 
 inherit eutils autotools cros-sanitizers cros-workon flag-o-matic systemd udev user
 
-# ModemManager likes itself with capital letters
-MY_P=${P/modemmanager/ModemManager}
-
 DESCRIPTION="Modem and mobile broadband management libraries"
-HOMEPAGE="http://mail.gnome.org/archives/networkmanager-list/2008-July/msg00274.html"
+HOMEPAGE="https://www.freedesktop.org/wiki/Software/ModemManager/"
 #SRC_URI not defined because we get our source locally
 
 LICENSE="GPL-2"
@@ -31,11 +28,15 @@ RDEPEND=">=dev-libs/glib-2.36
 
 DEPEND="${RDEPEND}
 	virtual/libgudev
-	dev-util/pkgconfig
-	dev-util/intltool
-	>=dev-util/gtk-doc-1.13
 	!net-misc/modemmanager-next-interfaces
 	!net-misc/modemmanager"
+
+BDEPEND="
+	dev-util/gdbus-codegen
+	dev-util/glib-utils
+	dev-util/intltool
+	>=dev-util/gtk-doc-am-1.13
+	>=sys-devel/gettext-0.19.8"
 
 DOCS="AUTHORS NEWS README"
 
@@ -78,6 +79,9 @@ src_prepare() {
 }
 
 src_configure() {
+	# https://github.com/pkgconf/pkgconf/issues/205
+	local -x PKG_CONFIG_FDO_SYSROOT_RULES=1
+
 	sanitizers-setup-env
 	append-flags -Xclang-only=-Wno-unneeded-internal-declaration
 	append-flags -DWITH_NEWEST_QMI_COMMANDS
@@ -88,6 +92,12 @@ src_configure() {
 		--with-html-dir="\${datadir}/doc/${PF}/html" \
 		--enable-compile-warnings=yes \
 		--enable-introspection=no \
+		--with-powerd-suspend-resume \
+		--disable-all-plugins   \
+		--enable-plugin-fibocom \
+		--enable-plugin-generic \
+		--enable-plugin-huawei \
+		--enable-plugin-intel \
 		"$(use_enable {,gtk-}doc)" \
 		"$(use_with mbim)" \
 		"$(use_enable qrtr plugin-qcom-soc)" \
@@ -113,35 +123,6 @@ src_install() {
 	# to launch the ModemManager process when a DBus call for the ModemManager
 	# service is received. We do not want this behaviour.
 	find "${D}" -name 'org.freedesktop.ModemManager1.service' -delete
-
-	# Only install the following plugins for supported modems to conserve
-	# space on the root filesystem.
-	local plugins=(
-		altair-lte
-		fibocom
-		generic
-		huawei
-		longcheer
-		novatel-lte
-		samsung
-		telit
-		zte
-	)
-	if use qrtr; then
-		plugins+=(qcom-soc)
-	fi
-
-	local plugins_regex=".*/libmm-plugin-($(IFS='|'; echo "${plugins[*]}")).so"
-
-	find "${D}" -regextype posix-extended \
-		-name 'libmm-plugin-*.so' \
-		! -regex "${plugins_regex}" \
-		-delete
-
-	local found_plugins="$(find "${D}" -regextype posix-extended \
-		-regex "${plugins_regex}" | wc -l)"
-	[[ "${found_plugins}" == "${#plugins[@]}" ]] || \
-		die "Expects ${#plugins[@]} plugins, but ${found_plugins} found."
 
 	# Seccomp policy file.
 	insinto /usr/share/policy
