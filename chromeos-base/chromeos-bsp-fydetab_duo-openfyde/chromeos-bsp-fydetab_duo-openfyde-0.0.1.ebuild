@@ -12,7 +12,6 @@ KEYWORDS="*"
 IUSE=""
 
 RDEPEND="
-  chromeos-base/chromeos-accelerometer-init
   chromeos-base/chromeos-bsp-inaugural
   chromeos-base/fydeos-power-daemon-go
   chromeos-base/vpd
