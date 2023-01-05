@@ -1,1 +1,2 @@
 media-libs/cros-camera-hal-usb::chromiumos
+chromeos-base/biod::chromiumos
