@@ -9,4 +9,4 @@ chromeos:
     - skus:
       - config:
           <<: *fydetab_duo_device_config
-          name: fydetab_duo-openfyde
+          name: fydetab_duo-openfyde-base
