@@ -3,8 +3,8 @@
 
 EAPI=7
 
-CROS_WORKON_COMMIT="40e1bc26badfabd2aa35666b44da5642e05b2fb4"
-CROS_WORKON_TREE="f1e762792290e259d1c6e45a9a0e2593e12043a5"
+CROS_WORKON_COMMIT="25ca6f30e02d9f46ed843341ec89a7b72787c1d5"
+CROS_WORKON_TREE="323bc650914026dc9e78ade7984d631816f0dfba"
 CROS_WORKON_INCREMENTAL_BUILD=1
 CROS_WORKON_LOCALNAME="platform2"
 CROS_WORKON_PROJECT="chromiumos/platform2"
@@ -17,21 +17,11 @@ SLOT="0/${PVR}"
 KEYWORDS="*"
 IUSE="test"
 
-RESTRICT="arm? ( binchecks )"
-
 DEPEND="
 	dev-rust/third-party-crates-src:=
 	chromeos-base/system_api:=
-	=dev-rust/anyhow-1.0*
-	=dev-rust/chrono-0.4*
-	=dev-rust/crossbeam-channel-0.5*
-	=dev-rust/dbus-0.8*
 	dev-rust/libchromeos:=
-	=dev-rust/log-0.4*
-	=dev-rust/nix-0.23*
-	=dev-rust/serde_json-1.0*
-	dev-rust/sys_util:=
-	=dev-rust/tempfile-3*
+	sys-apps/dbus:=
 "
 
 RDEPEND="
@@ -40,18 +30,12 @@ RDEPEND="
 	sys-block/parted
 "
 
-src_prepare() {
-	cros-rust_src_prepare
-	eapply -p2 "${FILESDIR}/0002-remove-os_install_service-seccomp-policy-for-minijail.patch"
-	eapply_user
-}
-
 src_install() {
 	insinto /etc/dbus-1/system.d
 	doins conf/org.chromium.OsInstallService.conf
 
-	# insinto /usr/share/policy
-	# newins "conf/os_install_service-seccomp-${ARCH}.policy" os_install_service-seccomp.policy
+#	insinto /usr/share/policy
+#	newins "conf/os_install_service-seccomp-${ARCH}.policy" os_install_service-seccomp.policy
 
 	insinto /etc/init
 	doins conf/os_install_service.conf
@@ -60,4 +44,10 @@ src_install() {
 
 	dosbin "$(cros-rust_get_build_dir)/is_running_from_installer"
 	dosbin "$(cros-rust_get_build_dir)/os_install_service"
+}
+
+src_prepare() {
+       cros-rust_src_prepare
+       eapply -p2 "${FILESDIR}/0002-remove-os_install_service-seccomp-policy-for-minijail.patch"
+       eapply_user
 }
