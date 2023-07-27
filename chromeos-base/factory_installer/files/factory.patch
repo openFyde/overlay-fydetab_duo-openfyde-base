@@ -1,0 +1,251 @@
+diff --git a/factory_bootstrap.sh b/factory_bootstrap.sh
+index bdac8a014ed6..d10340b6d824 100644
+--- a/factory_bootstrap.sh
++++ b/factory_bootstrap.sh
+@@ -12,7 +12,7 @@ STATEFUL_MNT=/stateful
+ 
+ get_stateful_dev() {
+   local real_usb_dev="$1"
+-  local stateful_dev="${real_usb_dev%%[0-9]*}1"
++  local stateful_dev="${real_usb_dev}p1"
+   if [ ! -b "${stateful_dev}" ]; then
+     stateful_dev=""
+   fi
+diff --git a/factory_common.sh b/factory_common.sh
+index dc4698fd3609..e12cf9fe44c7 100644
+--- a/factory_common.sh
++++ b/factory_common.sh
+@@ -63,7 +63,7 @@ bringup_network() {
+   # Try to bring up network and get an IP address on each Ethernet device.
+   for iface in $(ifconfig -a | grep -Eo 'eth[0-9]+'); do
+     ifconfig ${iface} up || true
+-    udhcpc -t 3 -f -q -n -i ${iface} -s /etc/udhcpc.script && result=0
++    udhcpc -t 10 -f -q -n -i ${iface} -s /etc/udhcpc.script && result=0
+   done
+   return ${result}
+ }
+@@ -120,4 +120,4 @@ get_path_to_lvm_stateful() {
+   fi
+ 
+   echo "${state_dev}"
+-}
+\ No newline at end of file
++}
+diff --git a/factory_cros_payload.sh b/factory_cros_payload.sh
+index fdfe6e431ecc..b588cf173fce 100644
+--- a/factory_cros_payload.sh
++++ b/factory_cros_payload.sh
+@@ -27,7 +27,7 @@ cros_payload_metadata() {
+ cros_payload_patch_lsb_factory() {
+   local real_usb_dev="$(findLSBValue REAL_USB_DEV)"
+   [ -n "${real_usb_dev}" ] || return 0
+-  local stateful_dev="${real_usb_dev%%[0-9]*}1"
++  local stateful_dev="${real_usb_dev}p1"
+   local temp_lsb_factory="$(mktemp)"
+   local mount_point="$(mktemp -d)"
+   mount -o ro "${stateful_dev}" "${mount_point}"
+@@ -54,7 +54,7 @@ cros_payload_patch_lsb_factory() {
+ cros_payload_patch_cutoff_config() {
+   local real_usb_dev="$(findLSBValue REAL_USB_DEV)"
+   [ -n "${real_usb_dev}" ] || return 0
+-  local stateful_dev="${real_usb_dev%%[0-9]*}1"
++  local stateful_dev="${real_usb_dev}p1"
+   local temp_config_path="$(mktemp)"
+   local mount_point="$(mktemp -d)"
+   mount -o ro "${stateful_dev}" "${mount_point}"
+@@ -89,7 +89,7 @@ cros_payload_patch_cutoff_config() {
+ cros_payload_install_description() {
+   local real_usb_dev="$(findLSBValue REAL_USB_DEV)"
+   [ -n "${real_usb_dev}" ] || return 0
+-  local stateful_dev=${real_usb_dev%%[0-9]*}1
++  local stateful_dev="${real_usb_dev}p1"
+   local temp_path="$(mktemp)"
+   local mount_point="$(mktemp -d)"
+   mount -o ro "${stateful_dev}" "${mount_point}"
+diff --git a/factory_install.sh b/factory_install.sh
+index e86dd1b3c741..87b660065b65 100644
+--- a/factory_install.sh
++++ b/factory_install.sh
+@@ -17,6 +17,8 @@ if [ -n "${LOG_FILE}" ]; then
+   export BASH_XTRACEFD="${LOG_FD}"
+ fi
+ 
++DEFAULT_ROOTDEV="/dev/mmcblk0"
++
+ . "/usr/share/misc/storage-info-common.sh"
+ # Include after other common include, side effect on GPT variable.
+ . "/usr/sbin/write_gpt.sh"
+@@ -422,6 +424,7 @@ reset_chromeos_device() {
+ get_dst_drive() {
+   load_base_vars
+   DST_DRIVE="$(get_fixed_dst_drive)"
++  DST_DRIVE="/dev/mmcblk0"
+   if [ -z "${DST_DRIVE}" ]; then
+     die "Cannot find fixed drive."
+   fi
+@@ -480,7 +483,7 @@ prepare_disk() {
+   local pmbr_code="/root/.pmbr_code"
+   [ -r ${pmbr_code} ] || die "Missing ${pmbr_code}; please rebuild image."
+ 
+-  write_base_table "${DST_DRIVE}" "${pmbr_code}" 2>&1
++#  write_base_table "${DST_DRIVE}" "${pmbr_code}" 2>&1
+   reload_partitions "${DST_DRIVE}"
+ 
+   log "Done preparing disk"
+@@ -780,6 +783,8 @@ factory_install_cros_payload() {
+   # Say hello to server if available.
+   omaha_greetings "hello" "${uuid}"
+ 
++  log "${dlc_path} cros_payload install "${json_url}" "${DST_DRIVE}" test_image release_image"
++
+   if [ -n "${dlc_path}" ]; then
+     log "Installation will fail if factory server version is less than" \
+         "20211102181209!"
+@@ -845,7 +850,7 @@ factory_install_cros_payload() {
+   fi
+ 
+   # Disable release partition and activate factory partition
+-  disable_release_partition
++  # disable_release_partition
+   run_postinst "$(make_partition_dev "${DST_DRIVE}" \
+     "${DST_FACTORY_ROOTFS_PART}")" || die "Failed running postinst script."
+   stateful_postinst "$(make_partition_dev "${DST_DRIVE}" "${DST_STATE_PART}")"
+@@ -875,7 +880,8 @@ get_usb_dev_stateful() {
+     die "Unknown media source. Please define REAL_USB_DEV."
+ 
+   # shellcheck disable=SC2001
+-  echo "${src_dev}" | sed 's/[0-9]\+$/1/'
++  # echo "${src_dev}" | sed 's/[0-9]\+$/1/'
++   echo "${src_dev}p1"
+ }
+ 
+ factory_install_usb() {
+@@ -901,18 +907,13 @@ connect_to_ethernet() {
+   log "Waiting for ethernet connectivity to install"
+ 
+   while true; do
+-    if [ -n "${NETBOOT_RAMFS}" ]; then
+-      # For initramfs network boot, there is no upstart job. We have to
+-      # bring up network interface and get IP address from DHCP on our own.
+-      # The network interface may not be ready, so let's ignore any
+-      # error here.
+-      bringup_network || true
+-    fi
+-    if check_ethernet_status; then
+-      break
+-    else
+-      sleep 1
+-    fi
++
++  bringup_network || true
++  if check_ethernet_status; then
++    break
++  else
++    sleep 1
++  fi
+   done
+ }
+ 
+@@ -1222,16 +1223,16 @@ menu() {
+ 
+ # I = Install.
+ action_i() {
+-  reset_chromeos_device
++  #reset_chromeos_device
+ 
+-  log "Checking for Firmware Write Protect"
++  # log "Checking for Firmware Write Protect"
+   # Check for physical firmware write protect. We'll only
+   # clear this stuff if the case is open.
+-  if ! check_hwwp; then
++  # if ! check_hwwp; then
+     # Clear software firmware write protect.
+-    clear_fwwp
+-  fi
+-  ensure_fwwp_consistency
++    # clear_fwwp
++  # fi
++  # ensure_fwwp_consistency
+ 
+   # `print_rma_info` prints the information about the usb shim.
+   # Skip printing when using netboot.
+@@ -1252,7 +1253,7 @@ action_i() {
+   fi
+ 
+   colorize green
+-  ufs_init
++  # ufs_init
+   get_dst_drive
+   prepare_disk
+ 
+@@ -1265,7 +1266,7 @@ action_i() {
+   sync
+   # Some installation procedure may clear or reset NVdata, so we want to ensure
+   # TPM will be cleared again.
+-  crossystem clear_tpm_owner_request=1 || true
++  # crossystem clear_tpm_owner_request=1 || true
+ 
+   # The gbb flag which forces the dev switch on (0x8) is set when
+   # (1) installing the firmware-updater and (2) doing RSU using cr50-reset.sh.
+@@ -1276,8 +1277,8 @@ action_i() {
+   # b/199803466 for more info.) Though user can enable developer mode and boot
+   # into test image, we decide to make it more user-friendly by setting the
+   # gbb flag here.
+-  log "Setting user-friendly gbb flags 0x39..."
+-  gbb_force_dev_mode
++  # log "Setting user-friendly gbb flags 0x39..."
++  # gbb_force_dev_mode
+ 
+   if need_to_update_ti50; then
+     update_ti50_firmware_from_release_rootfs
+@@ -1313,6 +1314,8 @@ action_i() {
+     tpm_enable_factory_mode
+   fi
+ 
++  busybox reboot -f
++
+   # Try to do EC reboot. If it fails, do normal reboot.
+   if [ -n "${NETBOOT_RAMFS}" ]; then
+     # There is no 'shutdown' and 'init' in initramfs.
+@@ -1734,4 +1737,8 @@ main() {
+     read -N 1 -p "Press any key to continue> "
+   done
+ }
++
++/usr/bin/cgpt add -t kernel -i 2 $DEFAULT_ROOTDEV || true
++/usr/bin/cgpt add -t kernel -i 4 $DEFAULT_ROOTDEV || true
++
+ main "$@"
+diff --git a/factory_tty.sh b/factory_tty.sh
+index ed030fbe19bc..0a043796baa8 100644
+--- a/factory_tty.sh
++++ b/factory_tty.sh
+@@ -11,7 +11,7 @@
+ #  [ -n "${LOG_TTY}" ] && echo "some log" >"${LOG_TTY}"
+ 
+ # TTY_CONSOLE will be changed by build script (values from make.conf).
+-TTY_CONSOLE=""
++TTY_CONSOLE="ttyFIQ0"
+ export TTY=""
+ export LOG_TTY=""
+ export INFO_TTY=""
+@@ -168,8 +168,8 @@ config_console() {
+ #  - ${TTY_CONSOLE} if non-empty (which may be a list).
+ #  - /dev/null if nothing else.
+ tty_init() {
+-  local ttys="$(kernel_get_var console)"
+-  local tty_name="" tty_path=""
++  local ktty="$(kernel_get_var console)"
++  local tty_name="" tty_path="" ttys=""
+ 
+   TTY=""
+   LOG_TTY=""
+@@ -188,7 +188,7 @@ tty_init() {
+     ttys="${ttys} ${frecon_tty#/dev/}"
+   fi
+ 
+-  ttys="${ttys} ${TTY_CONSOLE} null"
++  ttys="${ttys} ${ktty} ${TTY_CONSOLE} null"
+ 
+   kernel_msg "Finding best TTY from ${ttys}..."
+   for tty_name in ${ttys}; do
