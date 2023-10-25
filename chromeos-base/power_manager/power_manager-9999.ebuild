@@ -7,7 +7,7 @@ CROS_WORKON_LOCALNAME="platform2"
 CROS_WORKON_PROJECT="chromiumos/platform2"
 CROS_WORKON_OUTOFTREE_BUILD=1
 # TODO(crbug.com/809389): Avoid directly including headers from other packages.
-CROS_WORKON_SUBTREE="common-mk chromeos-config iioservice libec metrics mojo_service_manager power_manager shill/dbus/client .gn"
+CROS_WORKON_SUBTREE="common-mk chromeos-config featured iioservice libec metrics mojo_service_manager power_manager shill/dbus/client .gn"
 
 PLATFORM_NATIVE_TEST="yes"
 PLATFORM_SUBDIR="power_manager"
@@ -25,10 +25,13 @@ REQUIRED_USE="
 
 COMMON_DEPEND="
 	chromeos-base/chromeos-config-tools:=
+	chromeos-base/featured:=
 	chromeos-base/libec:=
+	chromeos-base/libiioservice_ipc:=
 	>=chromeos-base/metrics-0.0.1-r3152:=
 	chromeos-base/ml-client:=
 	chromeos-base/mojo_service_manager:=
+	chromeos-base/power_manager-client:=
 	chromeos-base/shill-dbus-client:=
 	chromeos-base/tpm_manager-client:=
 	dev-libs/libnl:=
@@ -39,8 +42,7 @@ COMMON_DEPEND="
 	cellular? ( net-misc/modemmanager-next:= )"
 
 RDEPEND="${COMMON_DEPEND}
-	chromeos-base/ec-utils
-	iioservice? ( chromeos-base/libiioservice_ipc:= )
+	chromeos-base/libiioservice_ipc:=
 	powerd_manual_eventlog_add? ( sys-apps/coreboot-utils )
 	qrtr? ( net-libs/libqrtr:= )
 "
@@ -63,6 +65,8 @@ pkg_setup() {
 }
 
 src_install() {
+	platform_src_install
+
 	# Binaries for production
 	dobin "${OUT}"/backlight_tool  # boot-splash, chromeos-boot-alert
 	dobin "${OUT}"/cpufreq_config
@@ -76,6 +80,7 @@ src_install() {
 	fperms 4750 /usr/bin/powerd_setuid_helper
 
 	# Binaries for testing and debugging
+	dobin "${OUT}"/battery_saver
 	dobin "${OUT}"/check_powerd_config
 	use amd64 && dobin "${OUT}"/dump_intel_rapl_consumption
 	dobin "${OUT}"/inject_powerd_input_event
@@ -155,7 +160,7 @@ src_install() {
 		systemd_dounit init/systemd/*.service
 		systemd_enable_service boot-services.target powerd.service
 		systemd_enable_service system-services.target report-power-metrics.service
-		systemd_dotmpfilesd init/systemd/powerd_directories.conf
+		dotmpfiles init/systemd/powerd_directories.conf
 	else
 		insinto /etc/init
 		doins init/upstart/*.conf
@@ -179,6 +184,7 @@ platform_pkg_test() {
 		power_manager_daemon_test
 		power_manager_policy_test
 		power_manager_system_test
+		power_manager_tools_battery_saver_test
 		power_manager_util_test
 	)
 

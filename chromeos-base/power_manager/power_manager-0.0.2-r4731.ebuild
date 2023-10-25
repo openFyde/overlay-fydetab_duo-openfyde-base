@@ -2,14 +2,14 @@
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
-CROS_WORKON_COMMIT="64cd12506e3f488c31ba42486cbeed91fbf95acf"
-CROS_WORKON_TREE=("79cdd007ff69259efcaad08803ef2d1498374ec4" "c76810dd7a19ff7d6cc8384aa30b962806f1d1c0" "77cc0ad6e3c6963ea161d98f76bd163ea1274596" "519533f5905e311e1f93fd184a2a9140a19e7038" "eb510d666a66e6125e281499b649651b849a25f7" "04e719781ceebd62f2f0c6fcc76f46a07944b9b4" "f6725f00593ed0ad0d89fb8232fcf0dc9287c8fd" "89c6bc5c3505754b3f56925b13f25e8b33274aa4" "f91b6afd5f2ae04ee9a2c19109a3a4a36f7659e6")
+CROS_WORKON_COMMIT="759635cf334285c52b12a0ebd304988c4bb1329f"
+CROS_WORKON_TREE=("c5a3f846afdfb5f37be5520c63a756807a6b31c4" "5fc655a864e89f331445ad76c757c117f451092b" "7a8c6512524978eb836927aaca8cfdef254c564d" "143fcc69d4ec2e1cf6b955e349f156fb76cdc3e9" "5b75188213f24484dc9fae5df56f8c6e5563c509" "71b6668ea23fdcf5ce2c3889e3a3cc703e8cd6df" "66d9ece0c55ff21826b4962ffd402f0927467387" "cb521af1d1a885478d217ff56dd7537fdb36f62c" "f74f32e76e5f0463b8473657c06db9cbb493b16a" "f91b6afd5f2ae04ee9a2c19109a3a4a36f7659e6")
 CROS_WORKON_USE_VCSID="1"
 CROS_WORKON_LOCALNAME="platform2"
 CROS_WORKON_PROJECT="chromiumos/platform2"
 CROS_WORKON_OUTOFTREE_BUILD=1
 # TODO(crbug.com/809389): Avoid directly including headers from other packages.
-CROS_WORKON_SUBTREE="common-mk chromeos-config iioservice libec metrics mojo_service_manager power_manager shill/dbus/client .gn"
+CROS_WORKON_SUBTREE="common-mk chromeos-config featured iioservice libec metrics mojo_service_manager power_manager shill/dbus/client .gn"
 
 PLATFORM_NATIVE_TEST="yes"
 PLATFORM_SUBDIR="power_manager"
@@ -27,10 +27,13 @@ REQUIRED_USE="
 
 COMMON_DEPEND="
 	chromeos-base/chromeos-config-tools:=
+	chromeos-base/featured:=
 	chromeos-base/libec:=
+	chromeos-base/libiioservice_ipc:=
 	>=chromeos-base/metrics-0.0.1-r3152:=
 	chromeos-base/ml-client:=
 	chromeos-base/mojo_service_manager:=
+	chromeos-base/power_manager-client:=
 	chromeos-base/shill-dbus-client:=
 	chromeos-base/tpm_manager-client:=
 	dev-libs/libnl:=
@@ -41,8 +44,7 @@ COMMON_DEPEND="
 	cellular? ( net-misc/modemmanager-next:= )"
 
 RDEPEND="${COMMON_DEPEND}
-	chromeos-base/ec-utils
-	iioservice? ( chromeos-base/libiioservice_ipc:= )
+	chromeos-base/libiioservice_ipc:=
 	powerd_manual_eventlog_add? ( sys-apps/coreboot-utils )
 	qrtr? ( net-libs/libqrtr:= )
 "
@@ -65,6 +67,8 @@ pkg_setup() {
 }
 
 src_install() {
+	platform_src_install
+
 	# Binaries for production
 	dobin "${OUT}"/backlight_tool  # boot-splash, chromeos-boot-alert
 	dobin "${OUT}"/cpufreq_config
@@ -78,6 +82,7 @@ src_install() {
 	fperms 4750 /usr/bin/powerd_setuid_helper
 
 	# Binaries for testing and debugging
+	dobin "${OUT}"/battery_saver
 	dobin "${OUT}"/check_powerd_config
 	use amd64 && dobin "${OUT}"/dump_intel_rapl_consumption
 	dobin "${OUT}"/inject_powerd_input_event
@@ -157,7 +162,7 @@ src_install() {
 		systemd_dounit init/systemd/*.service
 		systemd_enable_service boot-services.target powerd.service
 		systemd_enable_service system-services.target report-power-metrics.service
-		systemd_dotmpfilesd init/systemd/powerd_directories.conf
+		dotmpfiles init/systemd/powerd_directories.conf
 	else
 		insinto /etc/init
 		doins init/upstart/*.conf
@@ -181,6 +186,7 @@ platform_pkg_test() {
 		power_manager_daemon_test
 		power_manager_policy_test
 		power_manager_system_test
+		power_manager_tools_battery_saver_test
 		power_manager_util_test
 	)
 
