@@ -2,13 +2,12 @@
 # Distributed under the terms of the GNU General Public License v2
 # Based on gentoo's modemmanager ebuild
 
-EAPI=6
-CROS_WORKON_COMMIT="625c29cd9d59af86259cac0129d38767dc928cf4"
-CROS_WORKON_TREE="a90f59a2e56bf674152f2ed7799bd490fd2d4782"
+EAPI=7
+CROS_WORKON_COMMIT="1914c6ac62be32d46403c110d6247828a935ab1d"
+CROS_WORKON_TREE="0ea5e284b8aa1c64ee1af862b7378591a726e4e0"
 CROS_WORKON_PROJECT="chromiumos/third_party/modemmanager-next"
-CROS_WORKON_EGIT_BRANCH="master"
 
-inherit eutils autotools cros-sanitizers cros-workon flag-o-matic systemd udev user fcaps
+inherit meson cros-sanitizers cros-workon flag-o-matic udev user fcaps
 
 DESCRIPTION="Modem and mobile broadband management libraries"
 HOMEPAGE="https://www.freedesktop.org/wiki/Software/ModemManager/"
@@ -17,7 +16,7 @@ HOMEPAGE="https://www.freedesktop.org/wiki/Software/ModemManager/"
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="*"
-IUSE="doc mbim systemd qmi qrtr"
+IUSE="bash-completion doc mbim qmi qrtr"
 
 RDEPEND=">=dev-libs/glib-2.36
 	>=sys-apps/dbus-1.2
@@ -34,10 +33,9 @@ DEPEND="${RDEPEND}
 	!net-misc/modemmanager"
 
 BDEPEND="
+	bash-completion? ( >=app-shells/bash-completion-2.0 )
 	dev-util/gdbus-codegen
 	dev-util/glib-utils
-	dev-util/intltool
-	>=dev-util/gtk-doc-am-1.13
 	>=sys-devel/gettext-0.19.8"
 
 DOCS="AUTHORS NEWS README"
@@ -73,11 +71,6 @@ src_prepare() {
 	# [2] http://crosreview.com/294115
 	find introspection -type f -name 'org.freedesktop.ModemManager1.*.xml' \
 		-exec sed -i 's/^<node name="\/"/<node/' {} +
-
-	gtkdocize
-	eautopoint
-	eautoreconf
-	intltoolize --force
 }
 
 src_configure() {
@@ -85,40 +78,44 @@ src_configure() {
 	local -x PKG_CONFIG_FDO_SYSROOT_RULES=1
 
 	sanitizers-setup-env
-	append-flags -Xclang-only=-Wno-unneeded-internal-declaration
-	append-flags -DWITH_NEWEST_QMI_COMMANDS
 	# TODO(b/183029202): Remove this once we have support for IPv6 only network
-	append-flags -DSUPPORT_MBIM_IPV6_WITH_IPV4_ROAMING
-	append-flags -DMBIM_FIBOCOM_SAR_HACK
-	econf \
-		--with-html-dir="\${datadir}/doc/${PF}/html" \
-		--enable-compile-warnings=yes \
-		--enable-introspection=no \
-		--with-powerd-suspend-resume \
-		--disable-all-plugins   \
-		--enable-plugin-fibocom \
-		--enable-plugin-generic \
-		--enable-plugin-huawei \
-		--enable-plugin-quectel \
-		--enable-plugin-intel \
-		"$(use_enable {,gtk-}doc)" \
-		"$(use_with mbim)" \
-		"$(use_enable qrtr plugin-qcom-soc)" \
-		"$(use_with qmi)"
-}
+	append-cppflags -DSUPPORT_MBIM_IPV6_WITH_IPV4_ROAMING
+	append-cppflags -DMBIM_FIBOCOM_SAR_HACK
 
-src_test() {
-	# TODO(b/180536539): Run unit tests for non-x86 platforms via qemu.
-	if [[ "${ARCH}" == "x86" || "${ARCH}" == "amd64" ]] ; then
-		# This is an ugly hack that happens to work, but should not be copied.
-		PATH="${SYSROOT}/usr/bin:${PATH}" \
-		LD_LIBRARY_PATH="${SYSROOT}/usr/$(get_libdir):${SYSROOT}/$(get_libdir)" \
-		emake check
-	fi
+	append-cppflags -DMM_DISABLE_DEPRECATED
+	append-cppflags -DQMI_DISABLE_DEPRECATED
+	append-cppflags -DMBIM_DISABLE_DEPRECATED
+
+	local plugins=(
+		-Dplugin_fibocom="enabled"
+		-Dplugin_generic="enabled"
+		-Dplugin_intel="enabled"
+		-Dplugin_huawei="enabled"
+		-Dplugin_quectel="enabled"
+	)
+
+	local emesonargs=(
+		-Dauto_features="disabled"
+		-Dintrospection=false
+		-Dpolkit="no"
+		-Dpowerd_suspend_resume=true
+		-Dsystemd_journal=false
+		-Dsystemd_suspend_resume=false
+		-Dsystemdsystemunitdir="no"
+		-Dbuiltin_plugins=true
+		$(meson_use bash-completion bash_completion)
+		$(meson_use mbim)
+		$(meson_use qmi)
+		$(meson_use qmi qrtr)
+		$(meson_feature qrtr plugin_qcom_soc)
+
+		"${plugins[@]}"
+	)
+	meson_src_configure
 }
 
 src_install() {
-	default
+	meson_src_install
 	# Remove useless .la files
 	find "${D}" -name '*.la' -delete
 
@@ -132,13 +129,8 @@ src_install() {
 	newins "${FILESDIR}/modemmanager-${ARCH}.policy" modemmanager.policy
 
 	# Install init scripts.
-	if use systemd; then
-		systemd_dounit "${FILESDIR}/modemmanager.service"
-		systemd_enable_service system-services.target modemmanager.service
-	else
-		insinto /etc/init
-		doins "${FILESDIR}/modemmanager.conf"
-	fi
+	insinto /etc/init
+	doins "${FILESDIR}/modemmanager.conf"
 
 	# Override the ModemManager DBus configuration file to constrain how
 	# ModemManager exposes its DBus service on Chrome OS.
@@ -147,9 +139,6 @@ src_install() {
 
 	# Install Chrome OS specific udev rules.
 	udev_dorules "${FILESDIR}/52-mm-modem-permissions.rules"
-	udev_dorules "${FILESDIR}/77-mm-huawei-configuration.rules"
-	exeinto "$(get_udevdir)"
-	doexe "${FILESDIR}/mm-huawei-configuration-switch.sh"
 }
 
 pkg_preinst() {
@@ -159,5 +148,5 @@ pkg_preinst() {
 }
 
 FILECAPS=(
-  cap_net_admin+ep usr/sbin/ModemManager
+  cap_net_admin+ep ${EROOT}/usr/sbin/ModemManager
 )

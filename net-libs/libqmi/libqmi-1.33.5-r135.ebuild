@@ -2,16 +2,18 @@
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=6
+CROS_WORKON_COMMIT="c68af7a0183b1b9948aae826e75519e9b2c4dbb1"
+CROS_WORKON_TREE="89ccdb07dab5667ac16277e4d105d2a52cfc71c6"
 CROS_WORKON_PROJECT="chromiumos/third_party/libqmi"
 
-inherit meson cros-sanitizers cros-workon udev cros-fuzzer cros-sanitizers
+inherit meson cros-sanitizers cros-workon udev cros-fuzzer cros-sanitizers fcaps
 
 DESCRIPTION="QMI modem protocol helper library"
 HOMEPAGE="http://cgit.freedesktop.org/libqmi/"
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~*"
+KEYWORDS="*"
 IUSE="-asan mbim qrtr fuzzer"
 
 RDEPEND=">=dev-libs/glib-2.36
@@ -56,3 +58,7 @@ src_install() {
 			--comp "${fuzzer_component_id}"
 	fi
 }
+
+FILECAPS=(
+  cap_net_admin+ep usr/libexec/qmi-proxy
+)
